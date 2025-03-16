@@ -1,1 +1,169 @@
+#include <LedControl.h>
 
+struct Snake {
+    int head[2];
+    int body[40][2];
+    int len;
+    int dir[2];
+};
+
+struct Apple {
+    int rPos;
+    int cPos;
+};
+
+const int DIN = 12;
+const int CS = 11;
+const int CLK = 13;
+LedControl lc = LedControl(DIN, CLK, CS, 1);
+
+const int upButton = 2;
+const int downButton = 3;
+const int leftButton = 4;
+const int rightButton = 5;
+
+const int ledUp = 7;
+const int ledDown = 8;
+const int ledLeft = 9;
+const int ledRight = 10;
+
+byte pic[8] = {0, 0, 0, 0, 0, 0, 0, 0};  
+Snake snake = {{1, 5}, {{0, 5}, {1, 5}}, 2, {1, 0}};
+Apple apple;
+
+float oldTime = 0, timer = 0, updateRate = 3;
+
+void setup() {
+    lc.shutdown(0, false);
+    lc.setIntensity(0, 0);
+    lc.clearDisplay(0);
+
+    pinMode(upButton, INPUT_PULLUP);
+    pinMode(downButton, INPUT_PULLUP);
+    pinMode(leftButton, INPUT_PULLUP);
+    pinMode(rightButton, INPUT_PULLUP);
+
+    pinMode(ledUp, OUTPUT);
+    pinMode(ledDown, OUTPUT);
+    pinMode(ledLeft, OUTPUT);
+    pinMode(ledRight, OUTPUT);
+
+    randomSeed(analogRead(0));
+    generateApple();
+}
+
+void loop() {
+    float deltaTime = millis() - oldTime;
+    oldTime = millis();
+    timer += deltaTime;
+
+    checkInput();
+
+    if (timer > 1000 / updateRate) {
+        timer = 0;
+        updateGame();
+    }
+
+    renderGame();
+}
+
+void checkInput() {
+    static unsigned long lastInputTime = 0;
+    if (millis() - lastInputTime < 150) return;
+
+    if (digitalRead(upButton) == LOW && snake.dir[0] == 0) {
+        snake.dir[0] = -1; snake.dir[1] = 0;
+        flashLED(ledUp);
+    }
+    if (digitalRead(downButton) == LOW && snake.dir[0] == 0) {
+        snake.dir[0] = 1; snake.dir[1] = 0;
+        flashLED(ledDown);
+    }
+    if (digitalRead(leftButton) == LOW && snake.dir[1] == 0) {
+        snake.dir[0] = 0; snake.dir[1] = -1;
+        flashLED(ledLeft);
+    }
+    if (digitalRead(rightButton) == LOW && snake.dir[1] == 0) {
+        snake.dir[0] = 0; snake.dir[1] = 1;
+        flashLED(ledRight);
+    }
+
+    lastInputTime = millis();
+}
+
+void flashLED(int ledPin) {
+    digitalWrite(ledPin, HIGH);
+    delay(200);
+    digitalWrite(ledPin, LOW);
+}
+
+void generateApple() {
+    bool validPos;
+    do {
+        apple.rPos = random(0, 8);
+        apple.cPos = random(0, 8);
+        validPos = true;
+
+        for (int i = 0; i < snake.len; i++) {
+            if (snake.body[i][0] == apple.rPos && snake.body[i][1] == apple.cPos) {
+                validPos = false;
+                break;
+            }
+        }
+    } while (!validPos);
+}
+
+void updateGame() {
+    resetMatrix();
+
+    int newHead[2] = {snake.head[0] + snake.dir[0], snake.head[1] + snake.dir[1]};
+    if (newHead[0] == 8) newHead[0] = 0;
+    if (newHead[0] == -1) newHead[0] = 7;
+    if (newHead[1] == 8) newHead[1] = 0;
+    if (newHead[1] == -1) newHead[1] = 7;
+
+    for (int j = 0; j < snake.len; j++) {
+        if (snake.body[j][0] == newHead[0] && snake.body[j][1] == newHead[1]) {
+            delay(1000);
+            snake = {{1, 5}, {{0, 5}, {1, 5}}, 2, {1, 0}};
+            generateApple();
+            return;
+        }
+    }
+
+    if (newHead[0] == apple.rPos && newHead[1] == apple.cPos) {
+        snake.len++;
+        generateApple();
+    } else {
+        removeTail();
+    }
+
+    snake.body[snake.len - 1][0] = newHead[0];
+    snake.body[snake.len - 1][1] = newHead[1];
+    snake.head[0] = newHead[0];
+    snake.head[1] = newHead[1];
+
+    for (int j = 0; j < snake.len; j++) {
+        pic[snake.body[j][0]] |= 128 >> snake.body[j][1];
+    }
+    pic[apple.rPos] |= 128 >> apple.cPos;
+}
+
+void renderGame() {
+    for (int i = 0; i < 8; i++) {
+        lc.setRow(0, i, pic[i]);
+    }
+}
+
+void resetMatrix() {
+    for (int j = 0; j < 8; j++) {
+        pic[j] = 0;
+    }
+}
+
+void removeTail() {
+    for (int j = 1; j < snake.len; j++) {
+        snake.body[j - 1][0] = snake.body[j][0];
+        snake.body[j - 1][1] = snake.body[j][1];
+    }
+}
