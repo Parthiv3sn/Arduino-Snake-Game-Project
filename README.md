@@ -1,4 +1,4 @@
-# Arduino Snake Game
+# Arduino-Snake-Game-Project
 
 A compact Snake game for Arduino that renders gameplay on an 8×8 MAX7219 LED matrix. Four push-buttons control movement, and four indicator LEDs provide directional feedback.
 
